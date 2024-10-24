@@ -10808,19 +10808,71 @@ def get_chargeable_time(member_name: str, picked_date_start: datetime, to_date_e
     return total_chargeable_time
 
 
-def get_nonchargeable_time(member_name, picked_date_start, to_date_end, db: Session) -> timedelta:
-    """Calculate the total nonchargeable time for a user."""
+# def get_nonchargeable_time(member_name, picked_date_start, to_date_end, db: Session) -> timedelta:
+#     """Calculate the total nonchargeable time for a user."""
+#     user = db.query(models.User_table).filter(
+#         (models.User_table.firstname + ' ' + models.User_table.lastname) == member_name
+#     ).first()
+
+#     if not user:
+#         print(f"User not found for member_name: {member_name}")
+#         return timedelta()  # Return zero if user not found
+
+#     user_id = user.user_id
+#     TL_alias = aliased(models.TL)
+
+#     in_progress_records = db.query(models.INPROGRESS).join(
+#         TL_alias, TL_alias.Assigned_To == models.INPROGRESS.user_id
+#     ).filter(
+#         models.INPROGRESS.user_id == user_id,
+#         models.INPROGRESS.start_time >= picked_date_start,
+#         or_(
+#             models.INPROGRESS.end_time <= to_date_end,
+#             models.INPROGRESS.end_time.is_(None)  # Handle ongoing tasks
+#         ),
+#         TL_alias.Assigned_To == user_id,
+#         TL_alias.type_of_activity == "Non-Chargeable",
+#         TL_alias.status == 1  # Ensure the task is active
+#     ).all()
+
+#     total_chargeable_time = timedelta()
+
+#     # Process chargeable time records
+#     current_time = datetime.now()
+#     for record in in_progress_records:
+#         start_time = record.start_time
+#         end_time = record.end_time
+        
+#         # Check if end_time is None
+#         if end_time is None:
+#             # Use current time if start_time is from today
+#             if start_time.date() == current_time.date():
+#                 end_time = current_time  # Use current time as end_time for ongoing activities
+#             else:
+#                 continue  # Skip records that are not ongoing
+            
+#         # Calculate time difference
+#         time_diff = end_time - start_time
+#         total_chargeable_time += time_diff
+
+#     return total_chargeable_time
+
+def get_nonchargeable_time(member_name: str, picked_date_start: datetime, to_date_end: datetime, db: Session) -> timedelta:
+    """Calculate the total non-chargeable time for a user."""
+    
+    # Fetch the user by their full name
     user = db.query(models.User_table).filter(
         (models.User_table.firstname + ' ' + models.User_table.lastname) == member_name
     ).first()
 
     if not user:
         print(f"User not found for member_name: {member_name}")
-        return timedelta()  # Return zero if user not found
+        return timedelta()  # Return zero if user is not found
 
     user_id = user.user_id
     TL_alias = aliased(models.TL)
 
+    # Fetch non-chargeable in-progress records
     in_progress_records = db.query(models.INPROGRESS).join(
         TL_alias, TL_alias.Assigned_To == models.INPROGRESS.user_id
     ).filter(
@@ -10830,34 +10882,26 @@ def get_nonchargeable_time(member_name, picked_date_start, to_date_end, db: Sess
             models.INPROGRESS.end_time <= to_date_end,
             models.INPROGRESS.end_time.is_(None)  # Handle ongoing tasks
         ),
-        TL_alias.Assigned_To == user_id,
-        TL_alias.type_of_activity == "Non-Chargeable",
+        TL_alias.type_of_activity == "Non-Charchable",  # Filter by non-chargeable activities
         TL_alias.status == 1  # Ensure the task is active
     ).all()
 
-    total_chargeable_time = timedelta()
-
-    # Process chargeable time records
+    total_non_chargeable_time = timedelta()
     current_time = datetime.now()
+
+    # Process non-chargeable in-progress records
     for record in in_progress_records:
         start_time = record.start_time
-        end_time = record.end_time
-        
-        # Check if end_time is None
-        if end_time is None:
-            # Use current time if start_time is from today
-            if start_time.date() == current_time.date():
-                end_time = current_time  # Use current time as end_time for ongoing activities
-            else:
-                continue  # Skip records that are not ongoing
-            
-        # Calculate time difference
+        end_time = record.end_time or current_time  # Use current time for ongoing tasks
+
+        if start_time.date() != current_time.date() and end_time == current_time:
+            continue  # Skip if task isn't from today but marked as ongoing
+
+        # Calculate the time difference
         time_diff = end_time - start_time
-        total_chargeable_time += time_diff
+        total_non_chargeable_time += time_diff
 
-    return total_chargeable_time
-
-
+    return total_non_chargeable_time
 
 def calculate_total_time1ss(picked_date: str, to_date: str, db: Session) -> dict:
     picked_datett = datetime.strptime(picked_date, "%Y-%m-%d")
